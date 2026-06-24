@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Pipe Sizer</title>
+<style>
+  /* ===== Blurprint theme tokens (Discord-inspired, print-friendly) ===== */
+  :root{
+    --accent:#5865F2; --accent-deep:#4752C4; --tint:#EEF0FE; --tint-bd:#E0E3FB; --focus:#E4E7FC;
+    --good:#3BA55C; --good-tint:#E7F4EC; --good-ink:#2C7A47;
+    --warn:#E0A416; --warn-tint:#FBF1D8; --warn-ink:#9A6F0C;
+    --bad:#D83C3E; --bad-tint:#FCEDED; --bad-bd:#EDB5B6; --bad-ink:#A82C2E;
+    --white:#ffffff; --bg:#F8F9FB; --panel2:#F2F3F5; --line:#E3E5E8; --line2:#C7CAD1;
+    --b5:#B5BAC1; --muted:#80848E; --label:#9A9DA5; --ink2:#4E5058;
+    --text:#2E3035; --text2:#5C5E66; --ink:#1E1F22;
+    --sans:"Aptos","Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,sans-serif;
+    --mono:"Aptos Mono","Cascadia Code",ui-monospace,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;min-height:100%;}
+  body{background:var(--white);color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased;}
+  ::selection{background:#D9DDFB;}
+
+  /* header */
+  header{display:flex;align-items:center;gap:12px;padding:16px 28px;background:var(--white);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:10;}
+  .mark{width:40px;height:40px;flex:none;border-radius:14px;background:var(--accent);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:20px;letter-spacing:-1px;}
+  .brand{display:flex;flex-direction:column;line-height:1.15;}
+  .brand h1{font-size:18px;font-weight:700;margin:0;color:var(--ink);letter-spacing:-.2px;}
+  .brand .sub{font-size:12px;color:var(--muted);}
+  .pill{margin-left:auto;display:inline-flex;align-items:center;gap:8px;padding:5px 12px;border-radius:999px;background:var(--tint);color:var(--accent-deep);font-size:13px;font-weight:600;}
+  .pill .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);}
+
+  .wrap{max-width:880px;margin:0 auto;padding:34px 28px 90px;display:grid;gap:22px;}
+
+  /* card / panel — outline over fill */
+  .card{border:1px solid var(--line);border-radius:16px;padding:24px 26px;background:var(--white);box-shadow:0 1px 2px rgba(30,31,34,.04);}
+  .eyebrow{font-size:12px;font-weight:700;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;}
+  .card h2{font-size:22px;font-weight:700;margin:6px 0 4px;color:var(--ink);letter-spacing:-.3px;}
+  .card .desc{font-size:14.5px;line-height:1.55;color:var(--text2);margin:0 0 22px;max-width:660px;}
+  .card .desc b{color:var(--ink);font-weight:700;}
+
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+  .lbl{font-size:12px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text2);margin-bottom:8px;display:block;}
+
+  select,input{font-family:inherit;font-size:15px;color:var(--text);background:var(--white);border:1px solid var(--line2);border-radius:8px;height:44px;padding:0 14px;width:100%;outline:none;transition:border-color .12s,box-shadow .12s;}
+  select:focus,input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--focus);}
+  select{cursor:pointer;appearance:none;padding-right:36px;background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="%2380848E" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>');background-repeat:no-repeat;background-position:right 13px center;}
+
+  /* three solver fields */
+  .fields{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;}
+  @media(max-width:720px){.fields,.grid2{grid-template-columns:1fr;}}
+  .field{position:relative;border:1px solid var(--line);border-radius:12px;padding:16px;background:var(--white);transition:background .15s,border-color .15s;overflow:hidden;}
+  .field.out{background:var(--tint);border-color:var(--tint-bd);}
+  .field.out::before{content:"";position:absolute;left:0;top:14px;bottom:14px;width:4px;border-radius:0 4px 4px 0;background:var(--accent);}
+  .field .head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+  .field .name{font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--ink2);}
+  .field.out .name{color:var(--accent-deep);}
+  .badge{font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;border:1px solid var(--line2);color:var(--muted);background:var(--white);border-radius:6px;padding:3px 9px;cursor:pointer;user-select:none;transition:all .12s;}
+  .badge:hover{border-color:var(--accent);color:var(--accent);}
+  .field.out .badge{background:var(--accent);color:#fff;border-color:var(--accent);}
+  .row{display:flex;gap:8px;}
+  .row .v{flex:1 1 auto;min-width:0;}
+  .row .u{flex:0 0 96px;}
+  input:disabled,select:disabled{cursor:not-allowed;}
+  .field.out input:disabled,.field.out select:disabled{background:var(--white);color:var(--ink);font-weight:700;border-color:var(--accent);}
+  .hint{font-size:13.5px;line-height:1.55;color:var(--text2);margin-top:14px;min-height:18px;}
+  .hint b{color:var(--ink);font-weight:700;}
+  .vdot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:middle;}
+
+  /* details grid */
+  .details{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:12px;overflow:hidden;}
+  @media(max-width:720px){.details{grid-template-columns:repeat(2,1fr);}}
+  .cell{background:var(--white);padding:13px 15px;}
+  .cell .k{font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);}
+  .cell .val{font-size:18px;font-weight:700;color:var(--ink);margin-top:5px;}
+  .cell .val small{font-size:12px;color:var(--muted);font-weight:500;}
+
+  /* nearby comparison table */
+  table.near{width:100%;border-collapse:collapse;margin-top:18px;font-size:14px;}
+  table.near th{font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);text-align:right;padding:8px 12px;border-bottom:1px solid var(--line);}
+  table.near th:first-child{text-align:left;}
+  table.near td{padding:9px 12px;text-align:right;border-bottom:1px solid var(--line);color:var(--ink2);}
+  table.near td:first-child{text-align:left;font-weight:600;color:var(--text);}
+  table.near tr.pick td{background:var(--tint);color:var(--accent-deep);font-weight:700;}
+  table.near tr:last-child td{border-bottom:none;}
+
+  /* notes — left-bar callout */
+  .notes{position:relative;border-radius:10px;background:var(--tint);padding:18px 20px 18px 24px;font-size:13.5px;line-height:1.65;color:#4A4FA0;}
+  .notes::before{content:"";position:absolute;left:0;top:14px;bottom:14px;width:4px;border-radius:0 4px 4px 0;background:var(--accent);}
+  .notes b{color:#3A41A8;font-weight:700;}
+  .notes code{font-family:var(--mono);font-size:12.5px;background:rgba(255,255,255,.6);border:1px solid var(--tint-bd);border-radius:5px;padding:1px 6px;color:var(--accent-deep);}
+  .footer{font-size:13px;color:var(--label);border-top:1px solid var(--line);padding-top:18px;}
+</style>
+</head>
+<body>
+<header>
+  <div class="mark">P</div>
+  <div class="brand">
+    <h1>Pipe Sizer</h1>
+    <span class="sub">Velocity · Flow rate · Nominal diameter</span>
+  </div>
+  <span class="pill"><span class="dot"></span>Engineering tool</span>
+</header>
+
+<div class="wrap">
+
+  <!-- material / rating -->
+  <div class="card">
+    <div class="eyebrow">Inputs</div>
+    <h2>Pipe selection</h2>
+    <p class="desc">Choose the material and pressure class. The internal bore for each size is taken from the relevant standard and drives every calculation below.</p>
+    <div class="grid2">
+      <div>
+        <label class="lbl" for="material">Pipe material</label>
+        <select id="material">
+          <option value="poly">Polyethylene — PE100 (AS/NZS 4130)</option>
+          <option value="steel">Carbon Steel (ASME B36.10M)</option>
+        </select>
+      </div>
+      <div>
+        <label class="lbl" for="rating" id="ratingLbl">Pressure rating</label>
+        <select id="rating"></select>
+      </div>
+    </div>
+  </div>
+
+  <!-- the three versatile fields -->
+  <div class="card">
+    <div class="eyebrow">Solver</div>
+    <h2>Fill any two — the third is solved</h2>
+    <p class="desc">Flow rate, velocity and diameter are linked by <b>Q = v · (π/4) · ID²</b>. Enter any two and the third is computed; tap an <b>output</b> badge to choose which field is solved.</p>
+    <div class="fields">
+      <div class="field" id="f-q">
+        <div class="head"><span class="name">Flow rate</span><span class="badge" data-f="q">output</span></div>
+        <div class="row">
+          <input class="v" id="qVal" type="number" inputmode="decimal" placeholder="—" step="any" />
+          <select class="u" id="qUnit">
+            <option value="m3h" selected>m³/h</option>
+            <option value="ls">L/s</option>
+            <option value="lmin">L/min</option>
+            <option value="m3s">m³/s</option>
+            <option value="gpm">US GPM</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field" id="f-v">
+        <div class="head"><span class="name">Velocity</span><span class="badge" data-f="v">output</span></div>
+        <div class="row">
+          <input class="v" id="vVal" type="number" inputmode="decimal" placeholder="—" step="any" />
+          <select class="u" id="vUnit">
+            <option value="ms" selected>m/s</option>
+            <option value="fts">ft/s</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field" id="f-dn">
+        <div class="head"><span class="name">Nominal dia.</span><span class="badge" data-f="dn">output</span></div>
+        <div class="row">
+          <select class="v" id="dnSel"></select>
+        </div>
+      </div>
+    </div>
+    <div class="hint" id="hint"></div>
+  </div>
+
+  <!-- pipe geometry + suggestions -->
+  <div class="card">
+    <div class="eyebrow">Result</div>
+    <h2>Selected pipe</h2>
+    <p class="desc">Geometry for the chosen size and rating, with neighbouring sizes for comparison whenever a diameter is suggested.</p>
+    <div class="details" id="details"></div>
+    <div id="nearWrap"></div>
+  </div>
+
+  <!-- notes -->
+  <div class="notes" id="notes">
+    <b>How it works.</b> Flow, velocity and diameter are linked by
+    <code>Q = v · (π/4) · ID²</code>. Enter any two and the third is computed; tap an
+    <b>output</b> badge to choose which field is solved. Diameter results use the
+    <b>internal diameter</b> for the chosen size and rating.<br>
+    <b>Steel</b> ID = OD − 2 × wall thickness (ASME B36.10M). <b>PE100</b> uses the mean
+    bore from AS/NZS 4130; the PN rating maps to the SDR series (e.g. PN10 = SDR17,
+    PN16 = SDR11). When solving for diameter it <b>rounds up</b> to the next discrete size
+    whose bore meets the required area, so the actual velocity stays at or below your
+    target. Velocity dot: <span style="color:var(--good-ink)">green</span> ≈ 1–3 m/s
+    (typical carrying range), <span style="color:var(--warn-ink)">amber</span> outside it.
+  </div>
+
+  <div class="footer">Pipe Sizer · PE100 to AS/NZS 4130, carbon steel to ASME B36.10M · Styled with the Blurprint theme.</div>
+
+</div>
+
+<script>
+/* ===================== Reference data ===================== */
+/* PE100 — mean internal diameter (mm) by DN, in SDR order below. AS/NZS 4130 (Vinidex). */
+const PE_SDR = [41,33,26,21,17,13.6,11,9,7.4];
+const PE_PN  = {41:"PN4",33:"PN5",26:"PN6.3",21:"PN8",17:"PN10","13.6":"PN12.5",11:"PN16",9:"PN20","7.4":"PN25"};
+const PE_ID = {
+  16:[13,13,13,13,13,13,13,12,11], 20:[17,17,17,17,17,17,16,15,14],
+  25:[22,22,22,22,22,21,20,19,18], 32:[29,29,29,29,28,27,26,24,23],
+  40:[37,37,37,36,35,34,32,31,28], 50:[47,47,46,45,44,42,40,38,35],
+  63:[60,59,58,57,55,53,51,48,45], 75:[71,70,69,67,66,63,61,58,53],
+  90:[86,84,83,81,78,76,73,69,65], 110:[105,103,101,99,96,93,89,84,78],
+  125:[119,117,115,113,110,106,101,96,89], 140:[133,131,129,126,123,118,114,108,99],
+  160:[152,150,148,144,140,136,130,123,114], 180:[171,169,166,163,158,153,145,138,128],
+  200:[190,188,184,180,175,170,162,154,143], 225:[215,211,207,203,198,191,183,173,161],
+  250:[238,235,230,225,219,212,203,192,179], 280:[267,263,258,253,246,238,228,215,200],
+  315:[300,296,290,285,278,268,256,242,226], 355:[338,333,328,320,311,301,289,273,255],
+  400:[380,376,370,362,351,340,326,307,287], 450:[429,422,415,406,395,382,366,347,322],
+  500:[476,470,462,452,440,424,407,385,360], 560:[534,526,518,506,494,475,455,431,403],
+  630:[600,592,582,570,554,535,512,485,454], 710:[676,667,656,641,624,603,578,546,512],
+  800:[762,752,739,723,704,679,651,616,null], 900:[858,846,831,814,791,765,732,694,null],
+  1000:[953,940,924,904,880,852,815,771,null], 1200:[1143,1128,1109,1085,1063,1020,976,925,null]
+};
+
+/* Carbon steel — OD (mm) and wall thickness (mm) by schedule. ASME B36.10M (Atlas Steels). */
+const ST_SCH = ["10","20","30","40","STD","60","80","XS","100","120","140","160","XXS"];
+const ST = {
+  6:{od:10.3,w:{"10":1.24,"30":1.45,"40":1.73,STD:1.73,"80":2.41,XS:2.41}},
+  8:{od:13.7,w:{"10":1.65,"30":1.85,"40":2.24,STD:2.24,"80":3.02,XS:3.02}},
+  10:{od:17.1,w:{"10":1.65,"30":1.85,"40":2.31,STD:2.31,"80":3.20,XS:3.20}},
+  15:{od:21.3,w:{"10":2.11,"30":2.41,"40":2.77,STD:2.77,"80":3.73,XS:3.73,"160":4.78,XXS:7.47}},
+  20:{od:26.7,w:{"10":2.11,"30":2.41,"40":2.87,STD:2.87,"80":3.91,XS:3.91,"160":5.56,XXS:7.82}},
+  25:{od:33.4,w:{"10":2.77,"30":2.90,"40":3.38,STD:3.38,"80":4.55,XS:4.55,"160":6.35,XXS:9.09}},
+  32:{od:42.2,w:{"10":2.77,"30":2.97,"40":3.56,STD:3.56,"80":4.85,XS:4.85,"160":6.35,XXS:9.70}},
+  40:{od:48.3,w:{"10":2.77,"30":3.18,"40":3.68,STD:3.68,"80":5.08,XS:5.08,"160":7.14,XXS:10.15}},
+  50:{od:60.3,w:{"10":2.77,"30":3.18,"40":3.91,STD:3.91,"80":5.54,XS:5.54,"160":8.74,XXS:11.07}},
+  65:{od:73.0,w:{"10":3.05,"30":4.78,"40":5.16,STD:5.16,"80":7.01,XS:7.01,"160":9.53,XXS:14.02}},
+  80:{od:88.9,w:{"10":3.05,"30":4.78,"40":5.49,STD:5.49,"80":7.62,XS:7.62,"160":11.13,XXS:15.24}},
+  90:{od:101.6,w:{"10":3.05,"30":4.78,"40":5.74,STD:5.74,"80":8.08,XS:8.08}},
+  100:{od:114.3,w:{"10":3.05,"30":4.78,"40":6.02,STD:6.02,"80":8.56,XS:8.56,"120":11.13,"160":13.49,XXS:17.12}},
+  125:{od:141.3,w:{"10":3.40,"40":6.55,STD:6.55,"80":9.53,XS:9.53,"120":12.70,"160":15.88,XXS:19.05}},
+  150:{od:168.3,w:{"10":3.40,"40":7.11,STD:7.11,"80":10.97,XS:10.97,"120":14.27,"160":18.26,XXS:21.95}},
+  200:{od:219.1,w:{"10":3.76,"20":6.35,"30":7.04,"40":8.18,STD:8.18,"60":10.31,"80":12.70,XS:12.70,"100":15.09,"120":18.26,"140":20.62,"160":23.01,XXS:22.23}},
+  250:{od:273.0,w:{"10":4.19,"20":6.35,"30":7.80,"40":9.27,STD:9.27,"60":12.70,"80":15.09,XS:12.70,"100":18.26,"120":21.44,"140":25.40,"160":28.58,XXS:25.40}},
+  300:{od:323.8,w:{"10":4.57,"20":6.35,"30":8.38,"40":10.31,STD:9.53,"60":14.27,"80":17.48,XS:12.70,"100":21.44,"120":25.40,"140":28.58,"160":33.32,XXS:25.40}},
+  350:{od:355.6,w:{"10":6.35,"20":7.92,"30":9.53,"40":11.13,STD:9.53,"60":15.09,"80":19.05,XS:12.70,"100":23.83,"120":27.79,"140":31.75,"160":35.71}},
+  400:{od:406.4,w:{"10":6.35,"20":7.92,"30":9.53,"40":12.70,STD:9.53,"60":16.66,"80":21.44,XS:12.70,"100":26.19,"120":30.96,"140":36.53,"160":40.49}},
+  450:{od:457,w:{"10":6.35,"20":7.92,"30":11.13,"40":14.27,STD:9.53,"60":19.05,"80":23.83,XS:12.70,"100":29.36,"120":34.93,"140":39.67,"160":45.24}},
+  500:{od:508,w:{"10":6.35,"20":9.53,"30":12.70,"40":15.09,STD:9.53,"60":20.62,"80":26.19,XS:12.70,"100":32.54,"120":38.10,"140":44.45,"160":50.01}},
+  550:{od:559,w:{"10":6.35,"20":9.53,"30":12.70,STD:9.53,"60":22.23,"80":28.58,XS:12.70,"100":34.93,"120":41.28,"140":47.63,"160":53.98}},
+  600:{od:610,w:{"10":6.35,"20":9.53,"30":14.27,"40":17.48,STD:9.53,"60":24.61,"80":30.96,XS:12.70,"100":38.89,"120":46.02,"140":52.37,"160":59.54}},
+  650:{od:660,w:{"20":7.92,"30":12.70,STD:9.53,XS:12.70}},
+  700:{od:711,w:{"20":7.92,"30":12.70,"40":15.88,STD:9.53,XS:12.70}},
+  750:{od:762,w:{"20":7.92,"30":12.70,"40":15.88,STD:9.53,XS:12.70}},
+  800:{od:813,w:{"20":7.92,"30":12.70,"40":15.88,STD:9.53,XS:12.70}},
+  850:{od:864,w:{"20":7.92,"30":12.70,"40":15.88,STD:9.53,XS:12.70}},
+  900:{od:914,w:{"20":7.92,"30":12.70,"40":15.88,"60":19.05,STD:9.53,XS:12.70}},
+  950:{od:965,w:{STD:9.53,XS:12.70}},
+  1000:{od:1016,w:{STD:9.53,XS:12.70}},
+  1050:{od:1067,w:{STD:9.53,XS:12.70}},
+  1100:{od:1118,w:{STD:9.53,XS:12.70}},
+  1150:{od:1168,w:{STD:9.53,XS:12.70}},
+  1200:{od:1219,w:{STD:9.53,XS:12.70}}
+};
+
+/* ===================== Units ===================== */
+const Q_TO_M3S = {m3h:1/3600, ls:1/1000, lmin:1/60000, m3s:1, gpm:0.0000630902};
+const V_TO_MS  = {ms:1, fts:0.3048};
+
+/* ===================== State ===================== */
+const $ = id => document.getElementById(id);
+let outputField = "v";              // which field is solved: q | v | dn
+
+/* ===================== Geometry helpers ===================== */
+function ratingValue(){ return $("rating").value; }
+
+// internal diameter (mm) for a DN under current material+rating; null if N/A
+function idFor(dn){
+  if($("material").value==="poly"){
+    const arr = PE_ID[dn]; if(!arr) return null;
+    const idx = PE_SDR.indexOf(parseFloat(ratingValue()));
+    const v = arr[idx]; return (v==null)?null:v;
+  } else {
+    const p = ST[dn]; if(!p) return null;
+    const w = p.w[ratingValue()]; if(w==null) return null;
+    return p.od - 2*w;
+  }
+}
+function odFor(dn){ return $("material").value==="steel" ? (ST[dn]?.od ?? null) : (idFor(dn)); }
+function wallFor(dn){ return $("material").value==="steel" ? (ST[dn]?.w[ratingValue()] ?? null) : null; }
+function areaM2(dn){ const id = idFor(dn); if(id==null) return null; const r=id/2000; return Math.PI*r*r; }
+
+function availableDNs(){
+  const src = $("material").value==="poly" ? PE_ID : ST;
+  return Object.keys(src).map(Number).filter(dn=>idFor(dn)!=null).sort((a,b)=>a-b);
+}
+
+/* ===================== Formatting ===================== */
+function fmt(x){
+  if(x==null || !isFinite(x)) return "—";
+  const a=Math.abs(x);
+  if(a===0) return "0";
+  if(a>=1000) return x.toFixed(0);
+  if(a>=100) return x.toFixed(1);
+  if(a>=10) return x.toFixed(2);
+  if(a>=1) return x.toFixed(3);
+  return x.toFixed(4);
+}
+
+/* ===================== Dropdown population ===================== */
+function fillRating(){
+  const sel=$("rating"); const prev=sel.value; sel.innerHTML="";
+  if($("material").value==="poly"){
+    $("ratingLbl").textContent="Pressure rating (PN)";
+    PE_SDR.forEach(sdr=>{
+      const o=document.createElement("option");
+      o.value=String(sdr);
+      o.textContent=`${PE_PN[sdr]} — SDR ${sdr}`;
+      sel.appendChild(o);
+    });
+    sel.value = PE_SDR.includes(parseFloat(prev)) ? prev : "17"; // default PN10
+  } else {
+    $("ratingLbl").textContent="Schedule";
+    ST_SCH.forEach(s=>{
+      const o=document.createElement("option");
+      o.value=s; o.textContent = (s==="STD"||s==="XS"||s==="XXS")?s:("SCH "+s);
+      sel.appendChild(o);
+    });
+    sel.value = ST_SCH.includes(prev) ? prev : "40"; // default SCH40
+  }
+}
+
+function fillDN(){
+  const sel=$("dnSel"); const prev=Number(sel.value); sel.innerHTML="";
+  const dns=availableDNs();
+  dns.forEach(dn=>{
+    const o=document.createElement("option");
+    o.value=String(dn);
+    o.textContent=`DN${dn}  ·  ID ${fmt(idFor(dn))} mm`;
+    sel.appendChild(o);
+  });
+  if(dns.includes(prev)) sel.value=String(prev);
+  else if(dns.length){ // keep nearest to previous, else a sensible mid size
+    const target = prev || 100;
+    sel.value=String(dns.reduce((b,d)=>Math.abs(d-target)<Math.abs(b-target)?d:b,dns[0]));
+  }
+}
+
+/* ===================== Output selection ===================== */
+function setOutput(f){
+  outputField=f;
+  ["q","v","dn"].forEach(x=>$("f-"+x).classList.toggle("out", x===f));
+  // disable the output control(s), enable inputs
+  $("qVal").disabled = (f==="q");
+  $("vVal").disabled = (f==="v");
+  $("dnSel").disabled = (f==="dn");
+  compute();
+}
+
+/* ===================== Core compute ===================== */
+function compute(){
+  const hint=$("hint");
+  const dn=Number($("dnSel").value);
+  const qRaw=parseFloat($("qVal").value);
+  const vRaw=parseFloat($("vVal").value);
+  const qM3s = isFinite(qRaw)? qRaw*Q_TO_M3S[$("qUnit").value] : null;
+  const vMs  = isFinite(vRaw)? vRaw*V_TO_MS[$("vUnit").value] : null;
+  const A = areaM2(dn);
+
+  $("nearWrap").innerHTML="";
+  hint.innerHTML="";
+
+  if(outputField==="v"){
+    if(qM3s==null){ hint.textContent="Enter a flow rate to compute velocity."; renderDetails(dn,null); return; }
+    if(A==null){ hint.textContent="Select a valid pipe size."; return; }
+    const v = qM3s/A;                       // m/s
+    $("vVal").value = round4(v / V_TO_MS[$("vUnit").value]);
+    renderDetails(dn, v);
+  }
+  else if(outputField==="q"){
+    if(vMs==null){ hint.textContent="Enter a velocity to compute flow rate."; renderDetails(dn,null); return; }
+    if(A==null){ hint.textContent="Select a valid pipe size."; return; }
+    const q = vMs*A;                         // m³/s
+    $("qVal").value = round4(q / Q_TO_M3S[$("qUnit").value]);
+    renderDetails(dn, vMs);
+  }
+  else { // solve for diameter
+    if(qM3s==null || vMs==null){ hint.textContent="Enter both flow rate and target velocity to suggest a diameter."; return; }
+    const dns=availableDNs();
+    if(!dns.length){ hint.textContent="No sizes available for this selection."; return; }
+    const idReq = Math.sqrt(4*(qM3s/vMs)/Math.PI)*1000; // required bore, mm
+    const scored = dns.map(d=>({dn:d, v:qM3s/areaM2(d), id:idFor(d)}));
+    // round UP: smallest size whose bore meets/exceeds the requirement (→ actual v ≤ target)
+    const bigEnough = scored.filter(s=> s.id >= idReq).sort((a,b)=>a.id-b.id);
+    const best = bigEnough.length ? bigEnough[0] : scored.sort((a,b)=>b.id-a.id)[0];
+    $("dnSel").value=String(best.dn);
+    const note = bigEnough.length
+      ? `Ideal bore ≈ <b>${fmt(idReq)} mm</b>. Next size up: <b>DN${best.dn}</b> (ID ${fmt(best.id)} mm) → actual ${fmt(best.v/V_TO_MS[$("vUnit").value])} ${unitLabel("v")} (≤ target).`
+      : `Ideal bore ≈ <b>${fmt(idReq)} mm</b> exceeds the largest available size. Using <b>DN${best.dn}</b> → actual ${fmt(best.v/V_TO_MS[$("vUnit").value])} ${unitLabel("v")}.`;
+    hint.innerHTML = note;
+    renderDetails(best.dn, best.v);
+    renderNearby(scored, best.dn, vMs);
+  }
+}
+function round4(x){ return isFinite(x)? Number(x.toPrecision(5)) : ""; }
+
+function unitLabel(which){
+  if(which==="v") return $("vUnit").selectedOptions[0].textContent;
+  return $("qUnit").selectedOptions[0].textContent;
+}
+
+/* velocity colour guidance (typical liquid/slurry carrying band 1–3 m/s) */
+function vColor(vMs){ return (vMs>=1 && vMs<=3) ? "var(--good)" : "var(--warn)"; }
+
+function renderDetails(dn, vMs){
+  const id=idFor(dn), od=odFor(dn), wall=wallFor(dn), A=areaM2(dn);
+  const isPoly=$("material").value==="poly";
+  const ratingTxt = isPoly ? `${PE_PN[parseFloat(ratingValue())]} (SDR ${ratingValue()})` : ($("rating").selectedOptions[0]?.textContent||"");
+  const cells=[
+    ["Nominal", id!=null?`DN${dn}`:"—"],
+    [isPoly?"Mean ID":"Internal ID", id!=null?`${fmt(id)} <small>mm</small>`:"—"],
+    [isPoly?"Outside ID":"Outside Dia", od!=null?`${fmt(od)} <small>mm</small>`:"—"],
+    [isPoly?"SDR / PN":"Wall", isPoly?ratingTxt:(wall!=null?`${fmt(wall)} <small>mm</small>`:"—")],
+    ["Bore area", A!=null?`${fmt(A*1e4)} <small>cm²</small>`:"—"],
+    ["Rating", ratingTxt],
+    ["Velocity", vMs!=null?`<span class="vdot" style="background:${vColor(vMs)}"></span>${fmt(vMs)} <small>m/s</small>`:"—"],
+    ["Flow", (vMs!=null&&A!=null)?`${fmt(vMs*A*3600)} <small>m³/h</small>`:"—"]
+  ];
+  $("details").innerHTML = cells.map(c=>`<div class="cell"><div class="k">${c[0]}</div><div class="val">${c[1]}</div></div>`).join("");
+}
+
+function renderNearby(scored, pickDn, vMs){
+  const sorted=[...scored].sort((a,b)=>a.dn-b.dn);
+  const idx=sorted.findIndex(s=>s.dn===pickDn);
+  const slice=sorted.slice(Math.max(0,idx-2), Math.min(sorted.length,idx+3));
+  const vu=unitLabel("v");
+  let html=`<table class="near"><thead><tr><th>Size</th><th>ID (mm)</th><th>Velocity (${vu})</th><th>Δ vs target</th></tr></thead><tbody>`;
+  slice.forEach(s=>{
+    const vDisp=s.v/V_TO_MS[$("vUnit").value];
+    const d=(s.v-vMs)/V_TO_MS[$("vUnit").value];
+    html+=`<tr class="${s.dn===pickDn?'pick':''}"><td>DN${s.dn}</td><td>${fmt(s.id)}</td><td>${fmt(vDisp)}</td><td>${d>=0?'+':''}${fmt(d)}</td></tr>`;
+  });
+  html+=`</tbody></table>`;
+  $("nearWrap").innerHTML=html;
+}
+
+/* ===================== Wiring ===================== */
+$("material").addEventListener("change",()=>{ fillRating(); fillDN(); compute(); });
+$("rating").addEventListener("change",()=>{ fillDN(); compute(); });
+$("dnSel").addEventListener("change",compute);
+["qVal","vVal","qUnit","vUnit"].forEach(id=>$(id).addEventListener("input",compute));
+document.querySelectorAll(".badge").forEach(b=> b.addEventListener("click",()=> setOutput(b.dataset.f)));
+
+/* ===================== Init ===================== */
+fillRating(); fillDN(); setOutput("v");
+$("qVal").value="";  // demo-friendly empty start
+</script>
+</body>
+</html>
